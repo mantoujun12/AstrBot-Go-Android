@@ -1,0 +1,50 @@
+# syntax=docker/dockerfile:1
+# Base rootfs for the AstrBot Android PRoot environment.
+# Scaffold — pending P0 on-device verification (see docs/P0_VERIFICATION.md).
+# Built for linux/arm64 via `docker buildx build --platform linux/arm64`.
+# On x86_64 hosts this runs under qemu emulation (see runtime/scripts/export-rootfs.sh).
+FROM debian:trixie
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        xz-utils \
+        unzip \
+        tar \
+        zstd \
+        procps \
+        tzdata \
+        ffmpeg \
+        libgomp1 \
+        build-essential \
+        libffi-dev \
+        libssl-dev \
+        zlib1g-dev \
+        libsqlite3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pinned uv release (astra-sh/uv). Standalone static binary, no interpreter needed.
+ARG UV_VERSION=0.9.5
+# TODO: verify the SHA-256 of uv-aarch64-unknown-linux-gnu.tar.gz before release.
+RUN curl -fsSL -o /tmp/uv.tar.gz \
+        "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-aarch64-unknown-linux-gnu.tar.gz" \
+    && tar -xzf /tmp/uv.tar.gz -C /tmp \
+    && install -m 0755 /tmp/uv-aarch64-unknown-linux-gnu/uv /usr/local/bin/uv \
+    && rm -rf /tmp/uv.tar.gz /tmp/uv-aarch64-unknown-linux-gnu
+
+# Pinned standalone CPython 3.12 (python-build-standalone, managed by uv).
+ENV UV_PYTHON_INSTALL_DIR=/opt/python
+RUN uv python install 3.12.11
+
+# Per-instance bind-mount points (populated at runtime, never baked into the image).
+RUN mkdir -p /opt/astrbot-data /opt/astrbot-venv /opt/wheelhouse /opt/uv-cache
+
+# Hardlink is safe inside the rootfs and avoids slow copies on emulated storage.
+ENV UV_LINK_MODE=hardlink
+
+# NOTE: /etc/resolv.conf is deliberately NOT baked in; the app regenerates it
+# per instance at startup from the Android system DNS configuration.
