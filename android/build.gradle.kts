@@ -1,5 +1,9 @@
 allprojects {
     repositories {
+        // Aliyun mirrors first for networks where Google/Maven Central are slow.
+        // The original repositories below stay as authoritative fallbacks.
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/central")
         google()
         mavenCentral()
     }
