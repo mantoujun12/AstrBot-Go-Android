@@ -55,6 +55,19 @@ Runtime base image (requires Docker + buildx; qemu on x86_64 hosts):
 bash runtime/scripts/export-rootfs.sh dist      # build + export rootfs.tar.zst + manifest
 ```
 
+### China network notes
+
+Local builds on mainland-China networks should export:
+
+- `FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn`
+- `PUB_HOSTED_URL=https://pub.flutter-io.cn`
+
+Without the first one, Flutter engine artifacts download from
+`storage.googleapis.com/download.flutter.io` at dial-up speeds. The Android
+module already prefers Aliyun Maven mirrors (`android/settings.gradle.kts`,
+`android/build.gradle.kts`), and the Gradle wrapper distribution is pinned;
+do not commit machine-specific mirror overrides beyond these locations.
+
 ## Native Layer Conventions
 
 - Implement filesystem, process, download, archive, and Keystore operations in Kotlin. Expose them to Flutter through MethodChannel/EventChannel contracts with stable, JSON-serializable parameter and return types. Pages and widgets depend only on clear business methods, not on channel internals.
