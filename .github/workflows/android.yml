@@ -1,4 +1,4 @@
-# Runtime image workflows (ARM64) will be added with the PRoot runtime; this workflow only validates the app shell.
+# Runtime image workflows (ARM64) will be added with the PRoot runtime; this workflow only validates the Flutter app.
 name: Android CI
 
 on:
@@ -30,22 +30,29 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.50.0"
+          channel: stable
+          cache: true
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Fetch Dart packages
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        run: flutter test
 
       - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
-
-      - name: Run unit tests
-        run: ./gradlew :app:testDebugUnitTest --stacktrace
+        run: flutter build apk --debug
 
       - name: Upload debug APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: app/build/outputs/apk/debug
+          path: build/app/outputs/flutter-apk
           retention-days: 7
