@@ -28,34 +28,32 @@ Repository documentation layout:
 
 ## Tech Stack
 
-- UI: Flutter (Dart) — to replace the currently committed Jetpack Compose template.
+- UI: Flutter (Dart), living in `lib/`.
 - Native layer: pure Kotlin (foreground service, PRoot process management, downloads, Keystore). **No Jetpack Compose in the final app.**
 - Runtime: PRoot + Debian 13 arm64 base image, Python 3.12 (uv-managed), per-instance venvs.
-- Build: Gradle (wrapper), version catalog `gradle/libs.versions.toml`.
+- Build: Flutter toolchain for the app; Gradle (wrapper under `android/`) for advanced Android-module work.
 - CI: GitHub Actions; runtime artifacts build on ARM64 runners (`ubuntu-24.04-arm`).
 
 ## Current State vs Target
 
-The repository currently holds an unmodified Android Studio Compose template plus project docs, CI, and runtime scaffolding. The template's `MainActivity` and `ui/theme` are placeholders that will be **replaced wholesale** by the Flutter migration — do not invest in Compose UI polish. Changes that survive the migration: manifest metadata, Gradle config, docs, CI, `runtime/`.
+The repository currently holds a Flutter app shell (an early-development home screen only) plus project docs, CI, and runtime scaffolding. The real launcher UI (instances, versions, logs, settings), the native runtime service, and the PRoot integration are unbuilt and arrive with the P1 milestone per `docs/ARCHITECTURE.md`. Flutter code lives in `lib/` (feature-first structure); Android-specific code lives in `android/app/src/main/kotlin/...`.
 
 ## Development Commands
 
-Use the Gradle wrapper consistently. Do not hand-edit `gradle/wrapper/*`.
+```
+flutter pub get              # Fetch Dart packages
+flutter analyze              # Static analysis
+flutter test                 # Run Flutter unit/widget tests
+flutter build apk --debug    # Build the debug APK
+```
 
-```
-.\gradlew.bat :app:assembleDebug        # Build the debug APK (Windows)
-./gradlew :app:assembleDebug            # (Linux/macOS/CI)
-.\gradlew.bat :app:testDebugUnitTest     # Unit tests
-.\gradlew.bat :app:lintDebug            # Android lint
-```
+Gradle is only needed for advanced Android-module work, and it runs from the `android/` directory (e.g. `cd android && ./gradlew :app:assembleDebug`). Do not hand-edit `android/gradle/wrapper/*`.
 
 Runtime base image (requires Docker + buildx; qemu on x86_64 hosts):
 
 ```
 bash runtime/scripts/export-rootfs.sh dist      # build + export rootfs.tar.zst + manifest
 ```
-
-Flutter commands will be documented here once the migration lands. Until then, do not invent Flutter tool results; report that it was not run.
 
 ## Native Layer Conventions
 
@@ -87,7 +85,7 @@ The app never auto-downloads, auto-installs, auto-repairs, or auto-upgrades anyt
 
 ## Verification Requirements
 
-- For app/Gradle changes, run at least `:app:assembleDebug` and `:app:testDebugUnitTest`. For manifest or permission changes, also run `:app:lintDebug`.
+- For app changes, run at least `flutter analyze` and `flutter test`; for Android module or manifest changes, also run `flutter build apk --debug`.
 - For changes touching the PRoot invocation, bind mounts, base image, or wheelhouse layout, document the manual device verification against `docs/P0_VERIFICATION.md`; CI alone is insufficient.
 - Add unit tests for new critical pure logic, prioritizing path/port validation, manifest verification, version comparison, and state machines.
 - Report only the commands actually run and their results. Clearly disclose checks that were not run and any remaining risks.

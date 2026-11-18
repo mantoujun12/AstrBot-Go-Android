@@ -5,8 +5,12 @@ links are added only in the version update. See `AGENTS.md` for the rules.
 
 ## English
 
-Nothing user-facing yet — the app is not functional.
+### Added
+
+- Initial Flutter app shell replacing the Compose template, with an early-development home screen.
 
 ## 中文
 
-暂无面向用户的变化——应用尚不可用。
+### 新增
+
+- 以 Flutter 应用外壳替换 Compose 模板，包含早期开发阶段的主页界面。
