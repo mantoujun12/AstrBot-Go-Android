@@ -51,9 +51,32 @@ jobs:
           echo "GUEST_PY_DIR=$guest_py_dir" >> "$GITHUB_ENV"
           echo "Guest Python: $guest_py_dir/python3.12"
 
+      # Evidence-gathering for the first proot failure (segfault on this
+      # runner). Never fails the job; the outcomes below decide that.
+      - name: PRoot environment diagnostics
+        run: |
+          set +e
+          uname -a
+          echo "PAGESIZE=$(getconf PAGESIZE)"
+          proot --version
+          proot -r /tmp/rootfs /usr/bin/env /bin/true; echo "probe default proot: exit=$?"
+          PROOT_NO_SECCOMP=1 proot -r /tmp/rootfs /usr/bin/env /bin/true; echo "probe PROOT_NO_SECCOMP: exit=$?"
+          sudo apt-get install -y strace >/dev/null 2>&1
+          strace -f proot -r /tmp/rootfs /usr/bin/env /bin/true 2>&1 | tail -30; echo "strace done"
+          # Try latest upstream PRoot in case the distro build is too old.
+          sudo apt-get install -y libtalloc-dev pkg-config >/dev/null 2>&1
+          rm -rf /tmp/PRoot && git clone --depth 1 https://github.com/proot-me/PRoot /tmp/PRoot
+          if (cd /tmp/PRoot && make -j2 >/tmp/proot-build.log 2>&1); then
+            /tmp/PRoot/proot -r /tmp/rootfs /usr/bin/env /bin/true; echo "probe source proot: exit=$?"
+          else
+            tail -20 /tmp/proot-build.log; echo "source proot build failed"
+          fi
+          exit 0
+
       # P0 item 1: PRoot executes the base image (uv is at /usr/local/bin/uv).
       - name: Check A - PRoot boots the rootfs (debian_version + uv)
         id: check_a
+        continue-on-error: true
         run: |
           proot -r /tmp/rootfs \
             /usr/bin/env PATH=/usr/local/bin:/usr/bin:/bin \
@@ -62,6 +85,7 @@ jobs:
       # P0 item 2 (part 1): Python stdlib modules import inside PRoot.
       - name: Check B - Python ssl/sqlite3 import inside PRoot
         id: check_b
+        continue-on-error: true
         run: |
           proot -r /tmp/rootfs \
             /usr/bin/env PATH="$GUEST_PY_DIR:/usr/local/bin:/usr/bin:/bin" \
@@ -80,6 +104,7 @@ jobs:
       # the installed package ships the WebUI dashboard static assets.
       - name: Check C - offline install + dashboard/dist inside PRoot
         id: check_c
+        continue-on-error: true
         run: |
           proot -r /tmp/rootfs -b /tmp/wheelhouse:/opt/wheelhouse \
             /usr/bin/env \
