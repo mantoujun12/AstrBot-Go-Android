@@ -1,0 +1,118 @@
+# Build the PRoot base image on ARM64 and smoke-test it with real PRoot.
+# Pre-verifies P0 items 1-3 of docs/P0_VERIFICATION.md on plain Linux
+# (no Android device needed): PRoot boots the rootfs, Python works inside
+# it, and an offline wheelhouse install ships the WebUI dashboard.
+name: runtime-base
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "runtime/**"
+      - ".github/workflows/runtime-base.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    # ARM64 native: no qemu emulation, matches the on-device target.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Produces dist/rootfs.tar.zst + dist/rootfs.tar.zst.sha256 + dist/manifest.json.
+      - name: Build base image and export rootfs
+        run: bash runtime/scripts/export-rootfs.sh dist
+
+      - name: Install proot
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y proot
+
+      - name: Verify checksum and extract rootfs
+        run: |
+          echo "$(cat dist/rootfs.tar.zst.sha256)  dist/rootfs.tar.zst" | sha256sum -c -
+          mkdir -p /tmp/rootfs
+          zstd -dc dist/rootfs.tar.zst | tar -C /tmp/rootfs -xf -
+
+      # The image's Python is a uv-managed python-build-standalone tree;
+      # resolve the exact interpreter path once and reuse it in the checks.
+      - name: Resolve guest Python path
+        run: |
+          py_bin="$(find /tmp/rootfs/opt/python -type f -name python3.12 | head -n 1)"
+          if [ -z "$py_bin" ]; then
+            echo "::error::python3.12 not found under /tmp/rootfs/opt/python" >&2
+            exit 1
+          fi
+          guest_py_dir="$(dirname "$py_bin")"
+          guest_py_dir="${guest_py_dir#/tmp/rootfs}"
+          echo "GUEST_PY_DIR=$guest_py_dir" >> "$GITHUB_ENV"
+          echo "Guest Python: $guest_py_dir/python3.12"
+
+      # P0 item 1: PRoot executes the base image (uv is at /usr/local/bin/uv).
+      - name: Check A - PRoot boots the rootfs (debian_version + uv)
+        id: check_a
+        run: |
+          proot -r /tmp/rootfs \
+            /usr/bin/env PATH=/usr/local/bin:/usr/bin:/bin \
+            /bin/sh -c "cat /etc/debian_version && uv --version"
+
+      # P0 item 2 (part 1): Python stdlib modules import inside PRoot.
+      - name: Check B - Python ssl/sqlite3 import inside PRoot
+        id: check_b
+        run: |
+          proot -r /tmp/rootfs \
+            /usr/bin/env PATH="$GUEST_PY_DIR:/usr/local/bin:/usr/bin:/bin" \
+            "$GUEST_PY_DIR/python3.12" -c "import ssl, sqlite3"
+
+      # Stage a wheelhouse for astrbot 4.29.3 on the host. The runner's
+      # system Python is 3.12 on aarch64, so pip downloads cp312/arm64
+      # wheels - exactly what the on-device wheelhouse must contain.
+      - name: Stage wheelhouse for astrbot 4.29.3
+        run: |
+          python3 -m venv /tmp/wheelstage
+          /tmp/wheelstage/bin/pip download astrbot==4.29.3 \
+            -d /tmp/wheelhouse --only-binary=:all:
+
+      # P0 items 2 (part 2) + 3: offline install inside PRoot, then verify
+      # the installed package ships the WebUI dashboard static assets.
+      - name: Check C - offline install + dashboard/dist inside PRoot
+        id: check_c
+        run: |
+          proot -r /tmp/rootfs -b /tmp/wheelhouse:/opt/wheelhouse \
+            /usr/bin/env \
+              PATH="$GUEST_PY_DIR:/usr/local/bin:/usr/bin:/bin" \
+              UV_PYTHON_INSTALL_DIR=/opt/python \
+            /usr/local/bin/uv venv /opt/astrbot-venv
+          proot -r /tmp/rootfs -b /tmp/wheelhouse:/opt/wheelhouse \
+            /usr/bin/env PATH="$GUEST_PY_DIR:/usr/local/bin:/usr/bin:/bin" \
+            /usr/local/bin/uv pip install \
+              --python /opt/astrbot-venv/bin/python \
+              --no-index --find-links /opt/wheelhouse \
+              astrbot==4.29.3
+          proot -r /tmp/rootfs \
+            /usr/bin/env PATH=/usr/local/bin:/usr/bin:/bin \
+            /bin/sh -c "test -d /opt/astrbot-venv/lib/python3.12/site-packages/astrbot/dashboard/dist"
+
+      - name: Upload base image artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: base-image
+          path: dist/*
+          if-no-files-found: error
+
+      # Explicit gate so a failed or skipped smoke check always fails the job.
+      - name: Fail if any smoke check failed
+        if: always()
+        run: |
+          fail() {
+            echo "::error::smoke check $1 failed (outcome: $2)"
+            exit 1
+          }
+          [ "${{ steps.check_a.outcome }}" = "success" ] || fail "A (PRoot boots rootfs)" "${{ steps.check_a.outcome }}"
+          [ "${{ steps.check_b.outcome }}" = "success" ] || fail "B (python ssl/sqlite3)" "${{ steps.check_b.outcome }}"
+          [ "${{ steps.check_c.outcome }}" = "success" ] || fail "C (offline install + dashboard/dist)" "${{ steps.check_c.outcome }}"
+          echo "All smoke checks passed."
