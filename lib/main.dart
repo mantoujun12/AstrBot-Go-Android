@@ -1,11 +1,10 @@
 import 'package:material_ui/material_ui.dart';
 
-/// Placeholder home screen for the early-development shell.
-///
-/// The real launcher UI (instances, versions, logs, settings) arrives with
-/// the P1 milestone per docs/ARCHITECTURE.md. This screen exists so the
-/// installed app identifies itself and shows the planned structure; nothing
-/// here is interactive yet.
+import 'pages/instances_page.dart';
+import 'pages/logs_page.dart';
+import 'pages/settings_page.dart';
+import 'pages/versions_page.dart';
+
 void main() {
   runApp(const AstrBotGoApp());
 }
@@ -27,72 +26,49 @@ class AstrBotGoApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.dark,
       ),
-      home: const HomePage(),
+      home: const AppShell(),
     );
   }
 }
 
-/// A planned launcher section. All sections are placeholders for now.
-class _PlannedSection {
-  const _PlannedSection(this.icon, this.title, this.subtitle);
+/// Root shell: an app bar with the current section title, plus bottom
+/// navigation over an [IndexedStack] so each tab keeps its state.
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  @override
+  State<AppShell> createState() => _AppShellState();
 }
 
-const _plannedSections = [
-  _PlannedSection(Icons.dns, 'Instances', 'Create and manage local AstrBot instances'),
-  _PlannedSection(Icons.download, 'Versions', 'Pick and install AstrBot versions'),
-  _PlannedSection(Icons.terminal, 'Logs', 'Live instance and manager logs'),
-  _PlannedSection(Icons.settings, 'Settings', 'Network sources, background behavior, updates'),
-];
+class _AppShellState extends State<AppShell> {
+  static const _titles = ['Instances', 'Versions', 'Logs', 'Settings'];
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  static const _pages = [
+    InstancesPage(),
+    VersionsPage(),
+    LogsPage(),
+    SettingsPage(),
+  ];
+
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AstrBot Go'),
+      appBar: AppBar(title: Text(_titles[_selectedIndex])),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.construction, size: 20,
-                          color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Text('Early development',
-                          style: Theme.of(context).textTheme.titleMedium),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'This launcher is under construction. The runtime, '
-                    'instance manager, and native services are not built yet.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final section in _plannedSections)
-            ListTile(
-              leading: Icon(section.icon),
-              title: Text(section.title),
-              subtitle: Text(section.subtitle),
-              enabled: false,
-            ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) =>
+            setState(() => _selectedIndex = index),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.dns), label: 'Instances'),
+          NavigationDestination(icon: Icon(Icons.download), label: 'Versions'),
+          NavigationDestination(icon: Icon(Icons.terminal), label: 'Logs'),
+          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
