@@ -58,3 +58,13 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // P0 harness only: stream-decompress the .tar.zst base image (zstd-jni
+    // ships a linux/aarch64 native; AGP does not package the jar's
+    // desktop-layout natives, so src/main/jniLibs/arm64-v8a carries a copy of
+    // libzstd-jni-1.5.7-28.so taken from that jar) and extract the tar with
+    // correct symlink/hardlink/long-name/permission handling.
+    implementation("com.github.luben:zstd-jni:1.5.7-28")
+    implementation("org.apache.commons:commons-compress:1.28.0")
+}
