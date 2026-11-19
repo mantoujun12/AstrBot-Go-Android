@@ -27,11 +27,15 @@ RUN apt-get update \
         libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Pinned uv release (astra-sh/uv). Standalone static binary, no interpreter needed.
+# Pinned uv release (astral-sh/uv). Standalone static binary, no interpreter needed.
+# SHA-256 of uv-aarch64-unknown-linux-gnu.tar.gz, cross-checked against the
+# release asset checksum file:
+# https://github.com/astral-sh/uv/releases/download/0.9.5/uv-aarch64-unknown-linux-gnu.tar.gz.sha256
 ARG UV_VERSION=0.9.5
-# TODO: verify the SHA-256 of uv-aarch64-unknown-linux-gnu.tar.gz before release.
+ARG UV_AARCH64_SHA256=9db0c2f6683099f86bfeea47f4134e915f382512278de95b2a0e625957594ff3
 RUN curl -fsSL -o /tmp/uv.tar.gz \
         "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-aarch64-unknown-linux-gnu.tar.gz" \
+    && echo "${UV_AARCH64_SHA256}  /tmp/uv.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/uv.tar.gz -C /tmp \
     && install -m 0755 /tmp/uv-aarch64-unknown-linux-gnu/uv /usr/local/bin/uv \
     && rm -rf /tmp/uv.tar.gz /tmp/uv-aarch64-unknown-linux-gnu
