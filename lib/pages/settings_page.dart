@@ -2,30 +2,39 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:material_ui/material_ui.dart';
 
 import '../p0/debug_p0_page.dart';
+import '../widgets/settings/about_section.dart';
+import '../widgets/settings/appearance_section.dart';
+import '../widgets/settings/data_section.dart';
+import '../widgets/settings/general_section.dart';
+import '../widgets/settings/network_section.dart';
 
-/// Settings placeholder: planned network sources, background behavior,
-/// and update policy per docs/ARCHITECTURE.md. Static for now; extend by
-/// appending entries to the list below.
+/// App settings: a first-level category menu; each entry pushes its own
+/// page, mirroring the desktop SettingsView's category nav + content pane.
+/// Values are mock until the P1 settings store.
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  static const _plannedFeatures = [
-    (Icons.language,
-        'Network sources: GitHub proxies, PyPI mirrors, and a custom '
-        'artifact base URL, each with a connectivity test'),
-    (Icons.autorenew,
-        'Background behavior: opt-in crash auto-restart and boot restore'),
-    (Icons.update,
-        'Manual-only updates: the app never applies them on its own'),
+  static const _categories = [
+    (Icons.tune, 'General', GeneralSection()),
+    (Icons.palette, 'Appearance', AppearanceSection()),
+    (Icons.lan, 'Network', NetworkSection()),
+    (Icons.construction, 'Data & maintenance', DataSection()),
+    (Icons.info_outline, 'About', AboutSection()),
   ];
+
+  void _open(BuildContext context, String title, Widget section) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) =>
+            _SettingsSectionPage(title: title, section: section),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16),
       children: [
-        for (final (icon, text) in _plannedFeatures)
-          ListTile(leading: Icon(icon), title: Text(text), enabled: false),
         // Debug-only entry; the Kotlin channel refuses release builds too.
         if (kDebugMode)
           ListTile(
@@ -38,7 +47,34 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
           ),
+        for (final (icon, label, section) in _categories)
+          ListTile(
+            leading: Icon(icon),
+            title: Text(label),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _open(context, label, section),
+          ),
       ],
+    );
+  }
+}
+
+/// Second-level settings page: the category name in the app bar, the
+/// section content as the body.
+class _SettingsSectionPage extends StatelessWidget {
+  const _SettingsSectionPage({required this.title, required this.section});
+
+  final String title;
+  final Widget section;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: ListView(
+        padding: const EdgeInsets.only(top: 8),
+        children: [section],
+      ),
     );
   }
 }
